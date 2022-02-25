@@ -5,23 +5,50 @@
 #include "harness.h"
 #include "queue.h"
 
+// list_head_meta_t
+// element_t
+
 /* Notice: sometimes, Cppcheck would find the potential NULL pointer bugs,
  * but some of them cannot occur. You can suppress them by adding the
  * following line.
  *   cppcheck-suppress nullPointer
  */
 
+#define min(a, b) (((a) > (b)) ? (b) : (a))
+
 /*
  * Create empty queue.
  * Return NULL if could not allocate space.
  */
+
+static int isize = 0;
 struct list_head *q_new()
 {
-    return NULL;
+    // don't LIST_HEAD maybe it's calloc
+    // auto return NULL
+    // not a node, just a queue.
+    struct list_head *head =
+        (struct list_head *) malloc(sizeof(struct list_head));
+    if (!head)
+        return NULL;
+    INIT_LIST_HEAD(head);
+    isize = 0;
+    return head;
 }
 
 /* Free all storage used by queue */
-void q_free(struct list_head *l) {}
+void q_free(struct list_head *l)
+{
+    if (l == NULL)
+        return;
+    struct list_head *node = l->next;
+    while (node != l) {
+        list_del(node);
+        q_release_element(container_of(node, element_t, list));
+        node = l->next;
+    }
+    free(l);
+}
 
 /*
  * Attempt to insert element at head of queue.
@@ -30,8 +57,21 @@ void q_free(struct list_head *l) {}
  * Argument s points to the string to be stored.
  * The function must explicitly allocate space and copy the string into it.
  */
+
 bool q_insert_head(struct list_head *head, char *s)
 {
+    //*HEAD???
+    // HEAD is meta
+    element_t *new_node = (element_t *) malloc(sizeof(element_t));
+    if (head == NULL || new_node == NULL)
+        return false;
+    list_add(&new_node->list, head);
+    int len = strlen(s);
+    new_node->value = (char *) malloc(len + 1);
+    if (new_node->value == NULL)
+        return false;
+    memcpy(new_node->value, s, len + 1);
+    isize++;
     return true;
 }
 
@@ -44,6 +84,16 @@ bool q_insert_head(struct list_head *head, char *s)
  */
 bool q_insert_tail(struct list_head *head, char *s)
 {
+    element_t *new_node = (element_t *) malloc(sizeof(element_t));
+    if (!new_node || head == NULL)
+        return false;
+    list_add_tail(&new_node->list, head);
+    int len = strlen(s);
+    new_node->value = (char *) malloc(len + 1);
+    if (new_node->value == NULL)
+        return false;
+    memcpy(new_node->value, s, len + 1);
+    isize++;
     return true;
 }
 
@@ -63,7 +113,18 @@ bool q_insert_tail(struct list_head *head, char *s)
  */
 element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
 {
-    return NULL;
+    if (head == NULL || q_size(head) == 0)
+        return NULL;
+    element_t *ele = container_of(head->next, element_t, list);
+    if (sp) {
+        char *src = ele->value;
+        int len = min(strlen(src), bufsize - 1);
+        memcpy(sp, src, len);
+        sp[len] = 0;
+    }
+    list_del(&(ele->list));
+    isize--;
+    return ele;
 }
 
 /*
@@ -72,7 +133,18 @@ element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
  */
 element_t *q_remove_tail(struct list_head *head, char *sp, size_t bufsize)
 {
-    return NULL;
+    if (head == NULL || q_size(head) == 0)
+        return NULL;
+    element_t *ele = container_of(head->prev, element_t, list);
+    if (sp) {
+        char *src = ele->value;
+        int len = min(strlen(src), bufsize - 1);
+        memcpy(sp, src, len);
+        sp[len] = 0;
+    }
+    list_del(&(ele->list));
+    isize--;
+    return ele;
 }
 
 /*
@@ -91,7 +163,7 @@ void q_release_element(element_t *e)
  */
 int q_size(struct list_head *head)
 {
-    return -1;
+    return isize;
 }
 
 /*
@@ -105,6 +177,21 @@ int q_size(struct list_head *head)
 bool q_delete_mid(struct list_head *head)
 {
     // https://leetcode.com/problems/delete-the-middle-node-of-a-linked-list/
+    int size = q_size(head);
+    if (head == NULL || size == 0)
+        return false;
+    struct list_head *node;
+    size = size / 2;
+    printf("%d\n", size);
+    list_for_each (node, head) {
+        if (size == 0) {
+            list_del(node);
+            q_release_element(container_of(node, element_t, list));
+            break;
+        }
+        size--;
+    }
+    isize--;
     return true;
 }
 
@@ -129,6 +216,24 @@ bool q_delete_dup(struct list_head *head)
 void q_swap(struct list_head *head)
 {
     // https://leetcode.com/problems/swap-nodes-in-pairs/
+    int size = q_size(head);
+    if (head == NULL || size <= 1)
+        return;
+    struct list_head *a;
+
+    for (int i = 0; i < size / 2; i++) {
+        a = head->next;
+        list_del(a);
+        struct list_head *b = head->next;
+        list_del(b);
+        list_add_tail(b, head);
+        list_add_tail(a, head);
+    }
+    if ((size & 0b1) == 1) {
+        a = head->next;
+        list_del(a);
+        list_add_tail(a, head);
+    }
 }
 
 /*
@@ -138,7 +243,24 @@ void q_swap(struct list_head *head)
  * (e.g., by calling q_insert_head, q_insert_tail, or q_remove_head).
  * It should rearrange the existing ones.
  */
-void q_reverse(struct list_head *head) {}
+void q_reverse(struct list_head *head)
+{
+    if (head == NULL)
+        return;
+
+    struct list_head h2;
+    int size = q_size(head);
+    h2.next = head->next;
+    h2.prev = head->prev;
+    head->next->prev = &h2;
+    head->prev->next = &h2;
+    INIT_LIST_HEAD(head);
+    for (int i = 0; i < size; i++) {
+        struct list_head *node = h2.next;
+        list_del(node);
+        list_add(node, head);
+    }
+}
 
 /*
  * Sort elements of queue in ascending order
