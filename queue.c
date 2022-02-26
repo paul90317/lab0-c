@@ -68,8 +68,8 @@ bool q_insert_head(struct list_head *head, char *s)
         return false;
     }
 
-    list_add(&node->list, head);
     memcpy(node->value, s, len + 1);
+    list_add(&node->list, head);
     return true;
 }
 
@@ -94,8 +94,8 @@ bool q_insert_tail(struct list_head *head, char *s)
         return false;
     }
 
-    list_add_tail(&node->list, head);
     memcpy(node->value, s, len + 1);
+    list_add_tail(&node->list, head);
     return true;
 }
 
@@ -288,57 +288,70 @@ void q_reverse(struct list_head *head)
  * No effect if q is NULL or empty. In addition, if q has only one
  * element, do nothing.
  */
-// a is in left hand side of b
-static inline struct list_head *merge(struct list_head *a,
-                                      struct list_head *b,
-                                      int asize,
-                                      int bsize)
+static inline void h_push(struct list_head *node, struct list_head **back)
 {
-    struct list_head *tmp, htmp, *h;
-    h = a->prev;
-    INIT_LIST_HEAD(&htmp);
-    int i = 0, j = 0;
-    while ((i < asize) || (j < bsize)) {
-        if ((j == bsize) || ((i < asize) && (n_cmp(a, b) < 0))) {
-            tmp = a->next;
-            list_del(a);
-            list_add_tail(a, &htmp);
-            a = tmp;
-            i++;
+    (*back)->next = node;
+    node->next = NULL;
+    *back = node;
+}
+static inline struct list_head *h_pop(struct list_head **front)
+{
+    struct list_head *node = *front;
+    *front = node->next;
+    return node;
+}
+static inline void v_push(struct list_head *node, struct list_head **back)
+{
+    (*back)->prev = node;
+    node->prev = NULL;
+    *back = node;
+}
+static inline struct list_head *v_pop(struct list_head **front)
+{
+    struct list_head *node = *front;
+    *front = node->prev;
+    return node;
+}
+// a is in left hand side of b
+static inline struct list_head *merge(struct list_head *a, struct list_head *b)
+{
+    struct list_head front = {0, 0}, *back = &front;
+    struct list_head *tmp;
+    while (a || b) {
+        if (!b || (a && n_cmp(a, b) < 0)) {
+            tmp = v_pop(&a);
         } else {
-            tmp = b->next;
-            list_del(b);
-            list_add_tail(b, &htmp);
-            b = tmp;
-            j++;
+            tmp = v_pop(&b);
         }
+        v_push(tmp, &back);
     }
-    tmp = h->next;  // last
-
-    tmp->prev = htmp.prev;
-    htmp.prev->next = tmp;
-
-    h->next = htmp.next;
-    htmp.next->prev = h;
-
-    return tmp;
+    return front.prev;
 }
 
 void q_sort(struct list_head *head)
 {
-    int size = q_size(head);
-    if (head == NULL || size <= 1)
+    if (head == NULL || q_size(head) <= 1)
         return;
-    for (int iter = 1; iter < size; iter <<= 1) {
-        int rem = size;
-        struct list_head *a = head->next;
-        while (rem > iter) {
-            rem -= iter;
-            struct list_head *b = a;
-            for (int i = 0; i < iter; i++)
-                b = b->next;
-            a = merge(a, b, iter, min(iter, rem));
-            rem -= iter;
-        }
+
+    struct list_head *front = head->next, *back = head->prev;
+
+    // make vertival one node
+    struct list_head *node;
+    list_for_each (node, head) {
+        node->prev = NULL;
+    }
+    back->next = NULL;  // cut down horizonal back
+
+    while (front->next != back) {
+        node = h_pop(&front);
+        node = merge(node, h_pop(&front));
+        h_push(node, &back);
+    }
+
+    front = merge(front, back);
+    INIT_LIST_HEAD(head);
+    for (node = front; node; node = back) {
+        back = node->prev;
+        list_add_tail(node, head);
     }
 }
