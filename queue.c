@@ -265,20 +265,22 @@ void q_swap(struct list_head *head)
  * (e.g., by calling q_insert_head, q_insert_tail, or q_remove_head).
  * It should rearrange the existing ones.
  */
+inline void swap_child(struct list_head *node)
+{
+    struct list_head *t;
+    t = node->next;
+    node->next = node->prev;
+    node->prev = t;
+}
 void q_reverse(struct list_head *head)
 {
-    if (head == NULL)
+    if (head == NULL || head->next == NULL || head->prev == NULL)
         return;
 
-    struct list_head h2 = {head->prev, head->next};
-    int size = q_size(head);
-    head->next->prev = &h2;
-    head->prev->next = &h2;
-    INIT_LIST_HEAD(head);
-    for (int i = 0; i < size; i++) {
-        struct list_head *node = h2.next;
-        list_del(node);
-        list_add(node, head);
+    struct list_head *node = head->next;
+    swap_child(head);
+    for (node = head->prev; node != head; node = node->prev) {
+        swap_child(node);
     }
 }
 
