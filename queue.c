@@ -15,7 +15,9 @@
  */
 
 #define min(a, b) (((a) > (b)) ? (b) : (a))
-
+#define n_cmp(a, b)                                    \
+    (strcmp(container_of((a), element_t, list)->value, \
+            container_of((b), element_t, list)->value))
 /*
  * Create empty queue.
  * Return NULL if could not allocate space.
@@ -48,6 +50,7 @@ void q_free(struct list_head *l)
         node = l->next;
     }
     free(l);
+    isize = 0;
 }
 
 /*
@@ -62,8 +65,10 @@ bool q_insert_head(struct list_head *head, char *s)
 {
     //*HEAD???
     // HEAD is meta
+    if (head == NULL)
+        return false;
     element_t *new_node = (element_t *) malloc(sizeof(element_t));
-    if (head == NULL || new_node == NULL)
+    if (new_node == NULL)
         return false;
     list_add(&new_node->list, head);
     int len = strlen(s);
@@ -84,8 +89,10 @@ bool q_insert_head(struct list_head *head, char *s)
  */
 bool q_insert_tail(struct list_head *head, char *s)
 {
+    if (head == NULL)
+        return false;
     element_t *new_node = (element_t *) malloc(sizeof(element_t));
-    if (!new_node || head == NULL)
+    if (new_node == NULL)
         return false;
     list_add_tail(&new_node->list, head);
     int len = strlen(s);
@@ -163,6 +170,8 @@ void q_release_element(element_t *e)
  */
 int q_size(struct list_head *head)
 {
+    if (head == NULL)
+        return 0;
     return isize;
 }
 
@@ -207,6 +216,24 @@ bool q_delete_mid(struct list_head *head)
 bool q_delete_dup(struct list_head *head)
 {
     // https://leetcode.com/problems/remove-duplicates-from-sorted-list-ii/
+    if (head == NULL)
+        return false;
+    struct list_head *node = head->next, *next;
+    while (node != head) {
+        int flag = 0;
+        while ((next = node->next) != head && n_cmp(node, next) == 0) {
+            list_del(next);
+            q_release_element(container_of(next, element_t, list));
+            isize--;
+            flag = 1;
+        }
+        if (flag) {
+            list_del(node);
+            isize--;
+            q_release_element(container_of(node, element_t, list));
+        }
+        node = next;
+    }
     return true;
 }
 
@@ -267,11 +294,6 @@ void q_reverse(struct list_head *head)
  * No effect if q is NULL or empty. In addition, if q has only one
  * element, do nothing.
  */
-
-#define n_cmp(a, b)                                    \
-    (strcmp(container_of((a), element_t, list)->value, \
-            container_of((b), element_t, list)->value))
-
 // a is in left hand side of b
 static inline struct list_head *merge(struct list_head *a,
                                       struct list_head *b,
