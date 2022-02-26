@@ -25,8 +25,7 @@
 
 struct list_head *q_new()
 {
-    struct list_head *head =
-        (struct list_head *) malloc(sizeof(struct list_head));
+    struct list_head *head = malloc(sizeof(struct list_head));
     if (!head)
         return NULL;
     INIT_LIST_HEAD(head);
@@ -59,18 +58,18 @@ bool q_insert_head(struct list_head *head, char *s)
 {
     if (head == NULL || s == NULL)
         return false;
-    element_t *new_node = (element_t *) malloc(sizeof(element_t));
-    if (new_node == NULL)
+    element_t *node = malloc(sizeof(element_t));
+    if (node == NULL)
         return false;
     int len = strlen(s);
-    new_node->value = (char *) malloc(len + 1);
-    if (new_node->value == NULL) {
-        free(new_node);
+    node->value = malloc(len + 1);
+    if (node->value == NULL) {
+        free(node);
         return false;
     }
 
-    list_add(&new_node->list, head);
-    memcpy(new_node->value, s, len + 1);
+    memcpy(node->value, s, len + 1);
+    list_add(&node->list, head);
     return true;
 }
 
@@ -85,18 +84,18 @@ bool q_insert_tail(struct list_head *head, char *s)
 {
     if (head == NULL || s == NULL)
         return false;
-    element_t *new_node = (element_t *) malloc(sizeof(element_t));
-    if (new_node == NULL)
+    element_t *node = malloc(sizeof(element_t));
+    if (node == NULL)
         return false;
     int len = strlen(s);
-    new_node->value = (char *) malloc(len + 1);
-    if (new_node->value == NULL) {
-        free(new_node);
+    node->value = malloc(len + 1);
+    if (node->value == NULL) {
+        free(node);
         return false;
     }
 
-    list_add_tail(&new_node->list, head);
-    memcpy(new_node->value, s, len + 1);
+    memcpy(node->value, s, len + 1);
+    list_add_tail(&node->list, head);
     return true;
 }
 
