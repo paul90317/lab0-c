@@ -267,4 +267,62 @@ void q_reverse(struct list_head *head)
  * No effect if q is NULL or empty. In addition, if q has only one
  * element, do nothing.
  */
-void q_sort(struct list_head *head) {}
+
+#define n_cmp(a, b)                                    \
+    (strcmp(container_of((a), element_t, list)->value, \
+            container_of((b), element_t, list)->value))
+
+// a is in left hand side of b
+static inline struct list_head *merge(struct list_head *a,
+                                      struct list_head *b,
+                                      int asize,
+                                      int bsize)
+{
+    struct list_head *tmp, htmp, *h;
+    h = a->prev;
+    INIT_LIST_HEAD(&htmp);
+    int i = 0, j = 0;
+    while ((i < asize) || (j < bsize)) {
+        if ((j == bsize) || ((i < asize) && (n_cmp(a, b) < 0))) {
+            tmp = a->next;
+            list_del(a);
+            list_add_tail(a, &htmp);
+            a = tmp;
+            i++;
+        } else {
+            tmp = b->next;
+            list_del(b);
+            list_add_tail(b, &htmp);
+            b = tmp;
+            j++;
+        }
+    }
+    tmp = h->next;  // last
+
+    tmp->prev = htmp.prev;
+    htmp.prev->next = tmp;
+
+    h->next = htmp.next;
+    htmp.next->prev = h;
+
+    return tmp;
+}
+
+void q_sort(struct list_head *head)
+{
+    int size = q_size(head);
+    if (head == NULL || size <= 1)
+        return;
+    for (int iter = 1; iter < size; iter <<= 1) {
+        int rem = size;
+        struct list_head *a = head->next;
+        while (rem > iter) {
+            rem -= iter;
+            struct list_head *b = a;
+            for (int i = 0; i < iter; i++)
+                b = b->next;
+            a = merge(a, b, iter, min(iter, rem));
+            rem -= iter;
+        }
+    }
+}
