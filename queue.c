@@ -68,8 +68,8 @@ bool q_insert_head(struct list_head *head, char *s)
         return false;
     }
 
-    memcpy(node->value, s, len + 1);
     list_add(&node->list, head);
+    memcpy(node->value, s, len + 1);
     return true;
 }
 
@@ -94,8 +94,8 @@ bool q_insert_tail(struct list_head *head, char *s)
         return false;
     }
 
-    memcpy(node->value, s, len + 1);
     list_add_tail(&node->list, head);
+    memcpy(node->value, s, len + 1);
     return true;
 }
 
