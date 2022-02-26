@@ -23,7 +23,6 @@
  * Return NULL if could not allocate space.
  */
 
-static int isize = 0;
 struct list_head *q_new()
 {
     // don't LIST_HEAD maybe it's calloc
@@ -34,7 +33,6 @@ struct list_head *q_new()
     if (!head)
         return NULL;
     INIT_LIST_HEAD(head);
-    isize = 0;
     return head;
 }
 
@@ -50,7 +48,6 @@ void q_free(struct list_head *l)
         node = l->next;
     }
     free(l);
-    isize = 0;
 }
 
 /*
@@ -63,9 +60,7 @@ void q_free(struct list_head *l)
 
 bool q_insert_head(struct list_head *head, char *s)
 {
-    //*HEAD???
-    // HEAD is meta
-    if (head == NULL)
+    if (head == NULL || s == NULL)
         return false;
     element_t *new_node = (element_t *) malloc(sizeof(element_t));
     if (new_node == NULL)
@@ -76,7 +71,6 @@ bool q_insert_head(struct list_head *head, char *s)
     if (new_node->value == NULL)
         return false;
     memcpy(new_node->value, s, len + 1);
-    isize++;
     return true;
 }
 
@@ -89,7 +83,7 @@ bool q_insert_head(struct list_head *head, char *s)
  */
 bool q_insert_tail(struct list_head *head, char *s)
 {
-    if (head == NULL)
+    if (head == NULL || s == NULL)
         return false;
     element_t *new_node = (element_t *) malloc(sizeof(element_t));
     if (new_node == NULL)
@@ -100,7 +94,6 @@ bool q_insert_tail(struct list_head *head, char *s)
     if (new_node->value == NULL)
         return false;
     memcpy(new_node->value, s, len + 1);
-    isize++;
     return true;
 }
 
@@ -120,7 +113,7 @@ bool q_insert_tail(struct list_head *head, char *s)
  */
 element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
 {
-    if (head == NULL || q_size(head) == 0)
+    if (head == NULL || list_empty(head))
         return NULL;
     element_t *ele = container_of(head->next, element_t, list);
     if (sp) {
@@ -130,7 +123,6 @@ element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
         sp[len] = 0;
     }
     list_del(&(ele->list));
-    isize--;
     return ele;
 }
 
@@ -140,7 +132,7 @@ element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
  */
 element_t *q_remove_tail(struct list_head *head, char *sp, size_t bufsize)
 {
-    if (head == NULL || q_size(head) == 0)
+    if (head == NULL || list_empty(head))
         return NULL;
     element_t *ele = container_of(head->prev, element_t, list);
     if (sp) {
@@ -150,7 +142,6 @@ element_t *q_remove_tail(struct list_head *head, char *sp, size_t bufsize)
         sp[len] = 0;
     }
     list_del(&(ele->list));
-    isize--;
     return ele;
 }
 
@@ -172,7 +163,12 @@ int q_size(struct list_head *head)
 {
     if (head == NULL)
         return 0;
-    return isize;
+    int ret = 0;
+    struct list_head *node;
+    list_for_each (node, head) {
+        ret++;
+    }
+    return ret;
 }
 
 /*
@@ -191,7 +187,6 @@ bool q_delete_mid(struct list_head *head)
         return false;
     struct list_head *node;
     size = size / 2;
-    printf("%d\n", size);
     list_for_each (node, head) {
         if (size == 0) {
             list_del(node);
@@ -200,7 +195,6 @@ bool q_delete_mid(struct list_head *head)
         }
         size--;
     }
-    isize--;
     return true;
 }
 
@@ -224,12 +218,10 @@ bool q_delete_dup(struct list_head *head)
         while ((next = node->next) != head && n_cmp(node, next) == 0) {
             list_del(next);
             q_release_element(container_of(next, element_t, list));
-            isize--;
             flag = 1;
         }
         if (flag) {
             list_del(node);
-            isize--;
             q_release_element(container_of(node, element_t, list));
         }
         node = next;
