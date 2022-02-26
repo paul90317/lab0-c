@@ -25,9 +25,6 @@
 
 struct list_head *q_new()
 {
-    // don't LIST_HEAD maybe it's calloc
-    // auto return NULL
-    // not a node, just a queue.
     struct list_head *head =
         (struct list_head *) malloc(sizeof(struct list_head));
     if (!head)
@@ -65,11 +62,14 @@ bool q_insert_head(struct list_head *head, char *s)
     element_t *new_node = (element_t *) malloc(sizeof(element_t));
     if (new_node == NULL)
         return false;
-    list_add(&new_node->list, head);
     int len = strlen(s);
     new_node->value = (char *) malloc(len + 1);
-    if (new_node->value == NULL)
+    if (new_node->value == NULL) {
+        free(new_node);
         return false;
+    }
+
+    list_add(&new_node->list, head);
     memcpy(new_node->value, s, len + 1);
     return true;
 }
@@ -88,11 +88,14 @@ bool q_insert_tail(struct list_head *head, char *s)
     element_t *new_node = (element_t *) malloc(sizeof(element_t));
     if (new_node == NULL)
         return false;
-    list_add_tail(&new_node->list, head);
     int len = strlen(s);
     new_node->value = (char *) malloc(len + 1);
-    if (new_node->value == NULL)
+    if (new_node->value == NULL) {
+        free(new_node);
         return false;
+    }
+
+    list_add_tail(&new_node->list, head);
     memcpy(new_node->value, s, len + 1);
     return true;
 }
@@ -116,13 +119,13 @@ element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
     if (head == NULL || list_empty(head))
         return NULL;
     element_t *ele = container_of(head->next, element_t, list);
-    if (sp) {
-        char *src = ele->value;
+    char *src = ele->value;
+    if (sp && src) {
         int len = min(strlen(src), bufsize - 1);
         memcpy(sp, src, len);
-        sp[len] = 0;
+        sp[len] = '\0';
     }
-    list_del(&(ele->list));
+    list_del(&ele->list);
     return ele;
 }
 
@@ -135,13 +138,13 @@ element_t *q_remove_tail(struct list_head *head, char *sp, size_t bufsize)
     if (head == NULL || list_empty(head))
         return NULL;
     element_t *ele = container_of(head->prev, element_t, list);
-    if (sp) {
-        char *src = ele->value;
+    char *src = ele->value;
+    if (sp && src) {
         int len = min(strlen(src), bufsize - 1);
         memcpy(sp, src, len);
-        sp[len] = 0;
+        sp[len] = '\0';
     }
-    list_del(&(ele->list));
+    list_del(&ele->list);
     return ele;
 }
 
@@ -161,7 +164,7 @@ void q_release_element(element_t *e)
  */
 int q_size(struct list_head *head)
 {
-    if (head == NULL)
+    if (head == NULL || head->next == NULL || head->prev == NULL)
         return 0;
     int ret = 0;
     struct list_head *node;
@@ -267,10 +270,8 @@ void q_reverse(struct list_head *head)
     if (head == NULL)
         return;
 
-    struct list_head h2;
+    struct list_head h2 = {head->prev, head->next};
     int size = q_size(head);
-    h2.next = head->next;
-    h2.prev = head->prev;
     head->next->prev = &h2;
     head->prev->next = &h2;
     INIT_LIST_HEAD(head);
