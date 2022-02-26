@@ -277,7 +277,7 @@ void q_reverse(struct list_head *head)
     if (head == NULL || head->next == NULL || head->prev == NULL)
         return;
 
-    struct list_head *node = head->next;
+    struct list_head *node;
     swap_child(head);
     for (node = head->prev; node != head; node = node->prev) {
         swap_child(node);
