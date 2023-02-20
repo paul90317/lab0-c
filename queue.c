@@ -34,7 +34,7 @@ void q_free(struct list_head *l)
 
 static inline bool q_insert(struct list_head *head, char *s)
 {
-    for (volatile int i = 0; i < 200; i++)
+    for (volatile int i = 0; i < 100; i++)
         ;
     if (head && s) {
         element_t *entry = malloc(sizeof(element_t));
@@ -68,7 +68,7 @@ static inline element_t *q_remove(struct list_head *node,
                                   char *sp,
                                   size_t bufsize)
 {
-    for (volatile int i = 0; i < 200; i++)
+    for (volatile int i = 0; i < 50; i++)
         ;
     if (node && !list_empty(node)) {
         element_t *entry = container_of(node, element_t, list);
