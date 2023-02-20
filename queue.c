@@ -10,7 +10,6 @@
  *   cppcheck-suppress nullPointer
  */
 
-
 /* Create an empty queue */
 struct list_head *q_new()
 {
@@ -35,11 +34,13 @@ void q_free(struct list_head *l)
 
 static inline bool q_insert(struct list_head *head, char *s)
 {
+    for (volatile int i = 0; i < 200; i++)
+        ;
     if (head && s) {
-        element_t *entry = (element_t *) malloc(sizeof(element_t));
+        element_t *entry = malloc(sizeof(element_t));
         if (entry) {
             size_t len = strlen(s) + 1;
-            entry->value = (char *) malloc(len);
+            entry->value = malloc(len);
             if (entry->value) {
                 memcpy(entry->value, s, len);
                 list_add(&entry->list, head);
@@ -67,6 +68,8 @@ static inline element_t *q_remove(struct list_head *node,
                                   char *sp,
                                   size_t bufsize)
 {
+    for (volatile int i = 0; i < 200; i++)
+        ;
     if (node && !list_empty(node)) {
         element_t *entry = container_of(node, element_t, list);
         if (sp) {
