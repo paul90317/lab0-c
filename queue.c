@@ -2,16 +2,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "console.h"
 #include "cpucycles.h"
 #include "queue.h"
 
-#define at_least_cycle(c, type, func, ...) \
-    ({                                     \
-        int64_t t_start = cpucycles();     \
-        type ret = func(__VA_ARGS__);      \
-        while (cpucycles() - t_start < c)  \
-            ;                              \
-        ret;                               \
+#define at_least_cycle(c, type, func, ...)    \
+    ({                                        \
+        type ret;                             \
+        if (simulation) {                     \
+            int64_t t_start = cpucycles();    \
+            ret = func(__VA_ARGS__);          \
+            while (cpucycles() - t_start < c) \
+                ;                             \
+        } else                                \
+            ret = func(__VA_ARGS__);          \
+        ret;                                  \
     })
 
 /* Notice: sometimes, Cppcheck would find the potential NULL pointer bugs,
@@ -65,14 +70,12 @@ static inline bool q_insert(struct list_head *head, char *s)
 /* Insert an element at head of queue */
 bool q_insert_head(struct list_head *head, char *s)
 {
-    // return q_insert(head, s);
     return at_least_cycle(500, bool, q_insert, head, s);
 }
 
 /* Insert an element at tail of queue */
 bool q_insert_tail(struct list_head *head, char *s)
 {
-    // return q_insert(head->prev, s);
     return at_least_cycle(500, bool, q_insert, head->prev, s);
 }
 
@@ -95,14 +98,12 @@ static inline element_t *q_remove(struct list_head *node,
 /* Remove an element from head of queue */
 element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
 {
-    // return q_remove(head->next, sp, bufsize);
     return at_least_cycle(200, element_t *, q_remove, head->next, sp, bufsize);
 }
 
 /* Remove an element from tail of queue */
 element_t *q_remove_tail(struct list_head *head, char *sp, size_t bufsize)
 {
-    // return q_remove(head->prev, sp, bufsize);
     return at_least_cycle(200, element_t *, q_remove, head->prev, sp, bufsize);
 }
 
