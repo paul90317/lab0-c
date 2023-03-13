@@ -70,13 +70,13 @@ static inline bool q_insert(struct list_head *head, char *s)
 /* Insert an element at head of queue */
 bool q_insert_head(struct list_head *head, char *s)
 {
-    return at_least_cycle(500, bool, q_insert, head, s);
+    return q_insert(head, s);
 }
 
 /* Insert an element at tail of queue */
 bool q_insert_tail(struct list_head *head, char *s)
 {
-    return at_least_cycle(500, bool, q_insert, head->prev, s);
+    return q_insert(head->prev, s);
 }
 
 static inline element_t *q_remove(struct list_head *node,

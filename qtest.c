@@ -1263,5 +1263,16 @@ int main(int argc, char *argv[])
     /* Do finish_cmd() before check whether ok is true or false */
     ok = finish_cmd() && ok;
 
+    /* free queue */
+    set_cautious_mode(false);
+    struct list_head *cur = chain.head.next;
+    while (cur != &chain.head) {
+        queue_contex_t *ctx;
+        ctx = list_entry(cur, queue_contex_t, chain);
+        cur = cur->next;
+        q_free(ctx->q);
+        free(ctx);
+    }
+
     return !ok;
 }
