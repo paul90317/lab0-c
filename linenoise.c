@@ -1246,17 +1246,6 @@ static void line_atexit(void)
     free_history();
 }
 
-/* free history */
-#include "console.h"
-static bool history_free(int argc, char *argv[])
-{
-    for (int i = 0; i < history_len; i++) {
-        free(history[i]);
-    }
-    free(history);
-    return true;
-}
-
 /* This is the API call to add a new entry in the linenoise history.
  * It uses a fixed array of char pointers that are shifted (memmoved)
  * when the history max length is reached in order to remove the older
@@ -1276,7 +1265,6 @@ int line_history_add(const char *line)
         if (!history)
             return 0;
         memset(history, 0, (sizeof(char *) * history_max_len));
-        add_quit_helper(history_free);
     }
 
     /* Don't add duplicated lines. */
