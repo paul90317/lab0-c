@@ -42,19 +42,47 @@
 
 #define ENOUGH_MEASURE 10000
 #define TEST_TRIES 10
+#define N_THRESHOLDS 100
 
-static t_context_t *t;
+/* N_THRESHOLDS test with thresholds and one without without cropping */
+static t_context_t thresholds[N_THRESHOLDS + 1];
+static bool first;
+static int64_t percentiles[N_THRESHOLDS];
+
+typedef enum {
+    LEAKAGE_FOUND = 0,
+    NO_LEAKAGE_EVIDENCE_YET,
+    NOT_ENOUGH_MEASURE,
+    ERROR_IMPLEMENT
+} report_state_t;
+
+static int cmp(const int64_t *a, const int64_t *b)
+{
+    return (int) (*a - *b);
+}
+
+static int64_t percentile(int64_t *exec_times, double which)
+{
+    size_t array_position = (size_t) ((double) N_THRESHOLDS * (double) which);
+    assert(array_position >= 0 && array_position < N_THRESHOLDS);
+    return exec_times[array_position];
+}
+
+static void prepare_percentiles(int64_t *exec_times)
+{
+    qsort(exec_times, N_MEASURES, sizeof(int64_t),
+          (int (*)(const void *, const void *)) cmp);
+    for (size_t i = 0; i < N_THRESHOLDS; i++) {
+        percentiles[i] = percentile(
+            exec_times, 1 - pow(0.5, 10 * (double) (i + 1) / N_THRESHOLDS));
+    }
+}
 
 /* threshold values for Welch's t-test */
 enum {
     t_threshold_bananas = 500, /* Test failed with overwhelming probability */
     t_threshold_moderate = 10, /* Test failed */
 };
-
-static void __attribute__((noreturn)) die(void)
-{
-    exit(111);
-}
 
 static void differentiate(int64_t *exec_times,
                           const int64_t *before_ticks,
@@ -73,12 +101,35 @@ static void update_statistics(const int64_t *exec_times, uint8_t *classes)
             continue;
 
         /* do a t-test on the execution time */
-        t_push(t, difference, classes[i]);
+        t_push(thresholds + N_THRESHOLDS, difference, classes[i]);
+
+        for (size_t crop_index = 0; crop_index < N_THRESHOLDS; crop_index++) {
+            if (difference < percentiles[crop_index]) {
+                t_push(thresholds + crop_index, difference, classes[i]);
+            }
+        }
     }
 }
 
-static bool report(void)
+static t_context_t *max_test()
 {
+    size_t ret = N_THRESHOLDS;
+    double max = 0;
+    for (size_t i = 0; i <= N_THRESHOLDS; i++) {
+        if (thresholds[i].n[0] + thresholds[i].n[1] > ENOUGH_MEASURE) {
+            double x = fabs(t_compute(thresholds + i));
+            if (max < x) {
+                max = x;
+                ret = i;
+            }
+        }
+    }
+    return thresholds + ret;
+}
+
+static report_state_t report(void)
+{
+    t_context_t *t = max_test();
     double max_t = fabs(t_compute(t));
     double number_traces_max_t = t->n[0] + t->n[1];
     double max_tau = max_t / sqrt(number_traces_max_t);
@@ -88,7 +139,7 @@ static bool report(void)
     if (number_traces_max_t < ENOUGH_MEASURE) {
         printf("not enough measurements (%.0f still to go).\n",
                ENOUGH_MEASURE - number_traces_max_t);
-        return false;
+        return NOT_ENOUGH_MEASURE;
     }
 
     /* max_t: the t statistic value
@@ -106,72 +157,67 @@ static bool report(void)
 
     /* Definitely not constant time */
     if (max_t > t_threshold_bananas)
-        return false;
+        return LEAKAGE_FOUND;
 
     /* Probably not constant time. */
     if (max_t > t_threshold_moderate)
-        return false;
+        return LEAKAGE_FOUND;
 
     /* For the moment, maybe constant time. */
-    return true;
+    return NO_LEAKAGE_EVIDENCE_YET;
 }
 
-static bool doit(int mode)
+int64_t before_ticks[N_MEASURES];
+int64_t after_ticks[N_MEASURES];
+int64_t exec_times[N_MEASURES];
+uint8_t classes[N_MEASURES];
+uint8_t input_data[N_MEASURES];
+static report_state_t doit(int mode)
 {
-    int64_t *before_ticks = calloc(N_MEASURES + 1, sizeof(int64_t));
-    int64_t *after_ticks = calloc(N_MEASURES + 1, sizeof(int64_t));
-    int64_t *exec_times = calloc(N_MEASURES, sizeof(int64_t));
-    uint8_t *classes = calloc(N_MEASURES, sizeof(uint8_t));
-    uint8_t *input_data = calloc(N_MEASURES * CHUNK_SIZE, sizeof(uint8_t));
-
-    if (!before_ticks || !after_ticks || !exec_times || !classes ||
-        !input_data) {
-        die();
-    }
-
     prepare_inputs(input_data, classes);
-
-    bool ret = measure(before_ticks, after_ticks, input_data, mode);
+    if (!measure(before_ticks, after_ticks, input_data, mode))
+        return ERROR_IMPLEMENT;
     differentiate(exec_times, before_ticks, after_ticks);
+    if (first) {
+        prepare_percentiles(exec_times);
+        first = false;
+        return NOT_ENOUGH_MEASURE;
+    }
     update_statistics(exec_times, classes);
-    ret &= report();
 
-    free(before_ticks);
-    free(after_ticks);
-    free(exec_times);
-    free(classes);
-    free(input_data);
-
-    return ret;
+    return report();
 }
 
 static void init_once(void)
 {
     init_dut();
-    t_init(t);
+    first = true;
+    for (int i = 0; i <= N_THRESHOLDS; ++i) {
+        t_init(thresholds + i);
+    }
 }
 
 static bool test_const(char *text, int mode)
 {
-    bool result = false;
-    t = malloc(sizeof(t_context_t));
-
     for (int cnt = 0; cnt < TEST_TRIES; ++cnt) {
         printf("Testing %s...(%d/%d)\n\n", text, cnt, TEST_TRIES);
         init_once();
-        for (int i = 0; i < ENOUGH_MEASURE / (N_MEASURES - DROP_SIZE * 2) + 1;
-             ++i)
+        report_state_t result = NOT_ENOUGH_MEASURE;
+        while (result == NOT_ENOUGH_MEASURE) {
             result = doit(mode);
+        }
         printf("\033[A\033[2K\033[A\033[2K");
-        if (result)
-            break;
+        if (result == NO_LEAKAGE_EVIDENCE_YET)
+            return true;
     }
-    free(t);
-    return result;
+    return false;
 }
 
-#define DUT_FUNC_IMPL(op) \
-    bool is_##op##_const(void) { return test_const(#op, DUT(op)); }
+#define DUT_FUNC_IMPL(op)                \
+    bool is_##op##_const(void)           \
+    {                                    \
+        return test_const(#op, DUT(op)); \
+    }
 
 #define _(x) DUT_FUNC_IMPL(x)
 DUT_FUNCS

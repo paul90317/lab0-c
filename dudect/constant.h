@@ -8,9 +8,7 @@
 #define N_MEASURES 150
 
 /* Allow random number range from 0 to 65535 */
-#define CHUNK_SIZE 16
-
-#define DROP_SIZE 20
+#define CHUNK_SIZE 2
 
 #define DUT_FUNCS  \
     _(insert_head) \
