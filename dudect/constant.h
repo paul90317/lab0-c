@@ -24,7 +24,6 @@ enum {
 #undef _
 };
 
-void init_dut();
 void prepare_inputs(uint8_t *input_data, uint8_t *classes);
 bool measure(int64_t *before_ticks,
              int64_t *after_ticks,

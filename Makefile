@@ -78,9 +78,15 @@ clean:
 	rm -f $(OBJS) $(deps) *~ qtest /tmp/qtest.*
 	rm -rf .$(DUT_DIR)
 	rm -rf *.dSYM
+	rm out
 	(cd traces; rm -f *~)
 
 distclean: clean
 	rm -f .cmd_history
+
+dudect: qtest
+	@python3 scripts/driver.py -t 17 > out
+	@python3 scripts/dudect.py
+
 
 -include $(deps)

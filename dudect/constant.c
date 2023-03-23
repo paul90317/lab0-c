@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "constant.h"
@@ -39,12 +40,6 @@ static struct list_head *l = NULL;
 static char random_string[N_MEASURES][8];
 static int random_string_iter = 0;
 
-/* Implement the necessary queue interface to simulation */
-void init_dut(void)
-{
-    l = NULL;
-}
-
 static char *get_random_string(void)
 {
     random_string_iter = (random_string_iter + 1) % N_MEASURES;
@@ -55,9 +50,9 @@ void prepare_inputs(uint8_t *input_data, uint8_t *classes)
 {
     randombytes(input_data, N_MEASURES * CHUNK_SIZE);
     for (size_t i = 0; i < N_MEASURES; i++) {
-        classes[i] = randombit();
+        classes[i] = rand() & 1;
         if (classes[i] == 0)
-            memset(input_data + (size_t) i * CHUNK_SIZE, 0, CHUNK_SIZE);
+            memset(input_data + i * CHUNK_SIZE, 0, CHUNK_SIZE);
     }
 
     for (size_t i = 0; i < N_MEASURES; ++i) {

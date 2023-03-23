@@ -24,3 +24,6 @@ GPATH
 GRTAGS
 GSYMS
 GTAGS
+
+# custom
+out

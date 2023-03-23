@@ -45,8 +45,8 @@
 #define N_THRESHOLDS 100
 
 /* N_THRESHOLDS test with thresholds and one without without cropping */
-static t_context_t thresholds[N_THRESHOLDS + 1];
 static bool first;
+static t_context_t restricted_distributions[N_THRESHOLDS + 1];
 static int64_t percentiles[N_THRESHOLDS];
 
 typedef enum {
@@ -94,18 +94,19 @@ static void differentiate(int64_t *exec_times,
 
 static void update_statistics(const int64_t *exec_times, uint8_t *classes)
 {
-    for (size_t i = 0; i < N_MEASURES; i++) {
+    for (size_t i = 20; i < N_MEASURES; i++) {
         int64_t difference = exec_times[i];
         /* CPU cycle counter overflowed or dropped measurement */
         if (difference <= 0)
             continue;
 
         /* do a t-test on the execution time */
-        t_push(thresholds + N_THRESHOLDS, difference, classes[i]);
+        t_push(restricted_distributions + N_THRESHOLDS, difference, classes[i]);
 
         for (size_t crop_index = 0; crop_index < N_THRESHOLDS; crop_index++) {
             if (difference < percentiles[crop_index]) {
-                t_push(thresholds + crop_index, difference, classes[i]);
+                t_push(restricted_distributions + crop_index, difference,
+                       classes[i]);
             }
         }
     }
@@ -115,16 +116,18 @@ static t_context_t *max_test()
 {
     size_t ret = N_THRESHOLDS;
     double max = 0;
-    for (size_t i = 0; i <= N_THRESHOLDS; i++) {
-        if (thresholds[i].n[0] + thresholds[i].n[1] > ENOUGH_MEASURE) {
-            double x = fabs(t_compute(thresholds + i));
+    for (size_t i = 0; i <= N_THRESHOLDS - 20; i++) {
+        if (restricted_distributions[i].n[0] +
+                restricted_distributions[i].n[1] >
+            ENOUGH_MEASURE) {
+            double x = fabs(t_compute(restricted_distributions + i));
             if (max < x) {
                 max = x;
                 ret = i;
             }
         }
     }
-    return thresholds + ret;
+    return restricted_distributions + ret;
 }
 
 static report_state_t report(void)
@@ -132,28 +135,9 @@ static report_state_t report(void)
     t_context_t *t = max_test();
     double max_t = fabs(t_compute(t));
     double number_traces_max_t = t->n[0] + t->n[1];
-    double max_tau = max_t / sqrt(number_traces_max_t);
-
-    printf("\033[A\033[2K");
-    printf("meas: %7.2lf M, ", (number_traces_max_t / 1e6));
     if (number_traces_max_t < ENOUGH_MEASURE) {
-        printf("not enough measurements (%.0f still to go).\n",
-               ENOUGH_MEASURE - number_traces_max_t);
         return NOT_ENOUGH_MEASURE;
     }
-
-    /* max_t: the t statistic value
-     * max_tau: a t value normalized by sqrt(number of measurements).
-     *          this way we can compare max_tau taken with different
-     *          number of measurements. This is sort of "distance
-     *          between distributions", independent of number of
-     *          measurements.
-     * (5/tau)^2: how many measurements we would need to barely
-     *            detect the leak, if present. "barely detect the
-     *            leak" = have a t value greater than 5.
-     */
-    printf("max t: %+7.2f, max tau: %.2e, (5/tau)^2: %.2e.\n", max_t, max_tau,
-           (double) (5 * 5) / (double) (max_tau * max_tau));
 
     /* Definitely not constant time */
     if (max_t > t_threshold_bananas)
@@ -172,43 +156,46 @@ int64_t after_ticks[N_MEASURES];
 int64_t exec_times[N_MEASURES];
 uint8_t classes[N_MEASURES];
 uint8_t input_data[N_MEASURES];
-static report_state_t doit(int mode)
+
+static report_state_t dudect_main(int mode)
 {
     prepare_inputs(input_data, classes);
     if (!measure(before_ticks, after_ticks, input_data, mode))
         return ERROR_IMPLEMENT;
     differentiate(exec_times, before_ticks, after_ticks);
+    /* for (int i = 0; i < N_MEASURES; ++i) {
+        printf("dut %d %ld\n", classes[i], exec_times[i]);
+    } */
     if (first) {
         prepare_percentiles(exec_times);
         first = false;
         return NOT_ENOUGH_MEASURE;
     }
     update_statistics(exec_times, classes);
-
     return report();
 }
 
-static void init_once(void)
+static void dudect_init(void)
 {
-    init_dut();
     first = true;
     for (int i = 0; i <= N_THRESHOLDS; ++i) {
-        t_init(thresholds + i);
+        t_init(restricted_distributions + i);
     }
 }
 
 static bool test_const(char *text, int mode)
 {
     for (int cnt = 0; cnt < TEST_TRIES; ++cnt) {
-        printf("Testing %s...(%d/%d)\n\n", text, cnt, TEST_TRIES);
-        init_once();
+        printf("Testing %s...(%d/%d)\n", text, cnt, TEST_TRIES);
+        dudect_init();
         report_state_t result = NOT_ENOUGH_MEASURE;
         while (result == NOT_ENOUGH_MEASURE) {
-            result = doit(mode);
+            result = dudect_main(mode);
         }
-        printf("\033[A\033[2K\033[A\033[2K");
         if (result == NO_LEAKAGE_EVIDENCE_YET)
             return true;
+        if (result == ERROR_IMPLEMENT)
+            return false;
     }
     return false;
 }
