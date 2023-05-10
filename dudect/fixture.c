@@ -155,7 +155,7 @@ int64_t before_ticks[N_MEASURES];
 int64_t after_ticks[N_MEASURES];
 int64_t exec_times[N_MEASURES];
 uint8_t classes[N_MEASURES];
-uint8_t input_data[N_MEASURES];
+uint8_t input_data[N_MEASURES * CHUNK_SIZE];
 FILE *dudect_out;
 static report_state_t dudect_main(int mode)
 {
