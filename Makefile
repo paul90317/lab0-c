@@ -85,7 +85,7 @@ distclean: clean
 	rm -f .cmd_history
 
 dudect: qtest
-	@python3 scripts/driver.py -t 17 > out
+	@python3 scripts/driver.py -t 17
 	@python3 scripts/dudect.py
 
 

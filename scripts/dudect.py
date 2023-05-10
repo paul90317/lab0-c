@@ -14,22 +14,20 @@ def hist(samples :list[int], n :int, **kargv):
     for s in samples:
         y[int((s - mi) / intv)] += 1
     
-    plt.bar(x, y, **kargv, width = intv)
+    plt.plot(x, y, **kargv)
 
 data = ([], [])
-with open("out", "r") as f:
+with open("dudect.out", "r") as f:
     for li in f.readlines():
-        if not li.startswith("dut"):
-            continue
-        c, t = li[4:].split(" ")
+        c, t = li.split(" ")
         data[int(c)].append(int(t))
 
 plt.figure()
 plt.xlabel("cycles")
 plt.ylabel("times")
 print(len(data[0]), len(data[1]))
-hist(data[0], 2000, label = "fix")
-hist(data[1], 2000, label = "random")
-# plt.xlim(0, 1500)
+hist(data[0], 200, label = "fix")
+hist(data[1], 200, label = "random")
+plt.xlim(0, 1500)
 plt.legend()
 plt.show()

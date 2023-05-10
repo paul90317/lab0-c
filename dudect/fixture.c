@@ -156,16 +156,16 @@ int64_t after_ticks[N_MEASURES];
 int64_t exec_times[N_MEASURES];
 uint8_t classes[N_MEASURES];
 uint8_t input_data[N_MEASURES];
-
+FILE *dudect_out;
 static report_state_t dudect_main(int mode)
 {
     prepare_inputs(input_data, classes);
     if (!measure(before_ticks, after_ticks, input_data, mode))
         return ERROR_IMPLEMENT;
     differentiate(exec_times, before_ticks, after_ticks);
-    /* for (int i = 0; i < N_MEASURES; ++i) {
-        printf("dut %d %ld\n", classes[i], exec_times[i]);
-    } */
+    for (int i = 0; i < N_MEASURES; ++i) {
+        fprintf(dudect_out, "%d %ld\n", classes[i], exec_times[i]);
+    }
     if (first) {
         prepare_percentiles(exec_times);
         first = false;
@@ -178,13 +178,21 @@ static report_state_t dudect_main(int mode)
 static void dudect_init(void)
 {
     first = true;
+    dudect_out = fopen("dudect.out", "a");
     for (int i = 0; i <= N_THRESHOLDS; ++i) {
         t_init(restricted_distributions + i);
     }
 }
 
+static void dudect_free(void)
+{
+    fclose(dudect_out);
+}
+
 static bool test_const(char *text, int mode)
 {
+    dudect_out = fopen("dudect.out", "w");
+    fclose(dudect_out);
     for (int cnt = 0; cnt < TEST_TRIES; ++cnt) {
         printf("Testing %s...(%d/%d)\n", text, cnt, TEST_TRIES);
         dudect_init();
@@ -192,6 +200,7 @@ static bool test_const(char *text, int mode)
         while (result == NOT_ENOUGH_MEASURE) {
             result = dudect_main(mode);
         }
+        dudect_free();
         if (result == NO_LEAKAGE_EVIDENCE_YET)
             return true;
         if (result == ERROR_IMPLEMENT)

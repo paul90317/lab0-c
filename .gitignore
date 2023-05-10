@@ -26,4 +26,5 @@ GSYMS
 GTAGS
 
 # custom
+*.out
 out
