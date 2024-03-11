@@ -940,7 +940,7 @@ static int line_edit(int stdin_fd,
          * there was an error reading from fd. Otherwise it will return the
          * character that should be handled next.
          */
-        if (c == 9 && completion_callback != NULL) {
+        if (c == TAB && completion_callback != NULL) {
             c = complete_line(&l);
             /* Return on errors */
             if (c < 0)
