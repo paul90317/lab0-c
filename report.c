@@ -123,9 +123,7 @@ void report(int level, char *fmt, ...)
         va_end(ap);
     }
     if (web_connfd) {
-        int len = strlen(buffer);
-        buffer[len] = '\n';
-        buffer[len + 1] = '\0';
+        strcat(buffer, "<br/>");
         web_send(web_connfd, buffer);
     }
 }

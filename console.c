@@ -627,8 +627,12 @@ static int cmd_select(int nfds,
             "</head><body><table>\n";
         web_send(web_connfd, buffer);
 
-        if (p)
+        if (p) {
+            printf("\rweb> %s\n", p);
+            fflush(stdout);
             interpret_cmd(p);
+        }
+
         free(p);
         close(web_connfd);
     }
