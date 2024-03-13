@@ -64,6 +64,14 @@ static bool has_infile = false;
 #define MAXQUIT 10
 static cmd_func_t quit_helpers[MAXQUIT];
 static int quit_helper_cnt = 0;
+static char *headers =
+    "HTTP/1.1 200 OK\r\n"
+    "Content-Type: text/html\r\n\r\n"
+    "<html><head><style>"
+    "body{font-family: monospace; font-size: 13px;}"
+    "td {padding: 1.5px 6px;}"
+    "</style><link rel=\"shortcut icon\" href=\"show\">"
+    "</head><body><table>\n";
 
 static void init_in();
 
@@ -392,7 +400,7 @@ static bool do_time(int argc, char *argv[])
 }
 
 static bool use_linenoise = true;
-static int web_fd;
+int web_fd = 0;
 
 static bool do_web(int argc, char *argv[])
 {
@@ -405,7 +413,6 @@ static bool do_web(int argc, char *argv[])
     web_fd = web_open(port);
     if (web_fd > 0) {
         printf("listen on port %d, fd is %d\n", port, web_fd);
-        use_linenoise = false;
     } else {
         perror("ERROR");
         exit(web_fd);
@@ -553,7 +560,7 @@ static bool cmd_done()
  * nfds should be set to the maximum file descriptor for network sockets.
  * If nfds == 0, this indicates that there is no pending network activity
  */
-int web_connfd;
+int web_connfd = 0;
 static int cmd_select(int nfds,
                       fd_set *readfds,
                       fd_set *writefds,
@@ -617,15 +624,7 @@ static int cmd_select(int nfds,
             accept(web_fd, (struct sockaddr *) &clientaddr, &clientlen);
 
         char *p = web_recv(web_connfd, &clientaddr);
-        char *buffer =
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/html\r\n\r\n"
-            "<html><head><style>"
-            "body{font-family: monospace; font-size: 13px;}"
-            "td {padding: 1.5px 6px;}"
-            "</style><link rel=\"shortcut icon\" href=\"show\">"
-            "</head><body><table>\n";
-        web_send(web_connfd, buffer);
+        web_send(web_connfd, headers);
 
         if (p) {
             printf("\rweb> %s\n", p);
@@ -635,6 +634,7 @@ static int cmd_select(int nfds,
 
         free(p);
         close(web_connfd);
+        web_connfd = 0;
     }
     return result;
 }
@@ -699,10 +699,20 @@ bool run_console(char *infile_name)
     if (!has_infile) {
         char *cmdline;
         while (use_linenoise && (cmdline = linenoise(prompt))) {
+            if (web_connfd) {
+                web_send(web_connfd, headers);
+                printf("\033[Fweb> %s\n", cmdline);
+                fflush(stdout);
+            } else {
+                line_history_add(cmdline);       /* Add to the history. */
+                line_history_save(HISTORY_FILE); /* Save the history on disk. */
+            }
             interpret_cmd(cmdline);
-            line_history_add(cmdline);       /* Add to the history. */
-            line_history_save(HISTORY_FILE); /* Save the history on disk. */
             line_free(cmdline);
+            if (web_connfd) {
+                close(web_connfd);
+                web_connfd = 0;
+            }
             while (buf_stack && buf_stack->fd != STDIN_FILENO)
                 cmd_select(0, NULL, NULL, NULL, NULL);
             has_infile = false;

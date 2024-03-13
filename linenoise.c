@@ -110,12 +110,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/select.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
 #include "linenoise.h"
+#include "web.h"
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
@@ -134,6 +137,8 @@ static bool atexit_registered = false; /* Register atexit just 1 time. */
 static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 static int history_len = 0;
 static char **history = NULL;
+extern int web_fd;
+extern int web_connfd;
 
 /* The line_state structure represents the state during line editing.
  * We pass this state to functions implementing specific editing
@@ -893,6 +898,8 @@ static void line_edit_next_word(struct line_state *l)
  *
  * The function returns the length of the current buffer.
  */
+extern int web_connfd;
+extern int web_fd;
 static int line_edit(int stdin_fd,
                      int stdout_fd,
                      char *buf,
@@ -929,12 +936,38 @@ static int line_edit(int stdin_fd,
         return -1;
     while (1) {
         signed char c;
-        int nread;
         char seq[5];
+        fd_set set;
 
-        nread = read(l.ifd, &c, 1);
-        if (nread <= 0)
-            return l.len;
+        FD_ZERO(&set);
+        FD_SET(web_fd, &set);
+        FD_SET(stdin_fd, &set);
+        int rv = select(web_fd + 1, &set, NULL, NULL, NULL);
+        struct sockaddr_in clientaddr;
+        socklen_t clientlen = sizeof clientaddr;
+
+        switch (rv) {
+        case -1:
+            perror("select"); /* an error occurred */
+            continue;
+        case 0:
+            printf("timeout occurred\n"); /* a timeout occurred */
+            continue;
+        default:
+            if (web_fd && FD_ISSET(web_fd, &set)) {
+                web_connfd =
+                    accept(web_fd, (struct sockaddr *) &clientaddr, &clientlen);
+                char *p = web_recv(web_connfd, &clientaddr);
+                strncpy(buf, p, strlen(p) + 1);
+                free(p);
+                return strlen(p);
+            } else if (FD_ISSET(stdin_fd, &set)) {
+                int nread = read(l.ifd, &c, 1);
+                if (nread <= 0)
+                    return l.len;
+            }
+            break;
+        }
 
         /* Only autocomplete when the callback is set. It returns < 0 when
          * there was an error reading from fd. Otherwise it will return the
