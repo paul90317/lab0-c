@@ -75,7 +75,7 @@ element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
     element_t *element = container_of(head->next, element_t, list);
     list_del(&element->list);
     if (element->value && sp) {
-        memcpy(sp, element->value, bufsize - 1);
+        strncpy(sp, element->value, bufsize - 1);
         sp[bufsize - 1] = 0;
     }
     return element;
@@ -89,7 +89,7 @@ element_t *q_remove_tail(struct list_head *head, char *sp, size_t bufsize)
     element_t *element = container_of(head->prev, element_t, list);
     list_del(&element->list);
     if (element->value && sp) {
-        memcpy(sp, element->value, bufsize - 1);
+        strncpy(sp, element->value, bufsize - 1);
         sp[bufsize - 1] = 0;
     }
     return element;
@@ -228,7 +228,7 @@ static void merge_tail_init(list_t *list, list_t *head)
 void q_sort(struct list_head *head, bool descend)
 {
     int stack_cap = 33 - __builtin_clz(q_size(head) - 1);
-    list_t *stack = calloc(stack_cap, sizeof(list_t));
+    list_t stack[33];
     for (int i = 0; i < stack_cap; ++i) {
         INIT_LIST_HEAD(&stack[i].list);
         stack[i].size = 0;
@@ -339,7 +339,7 @@ int q_merge(struct list_head *head, bool descend)
 {
     // https://leetcode.com/problems/merge-k-sorted-lists/
     int heap_size = q_size(head);
-    list_t *heap = calloc(heap_size, sizeof(list_t));
+    list_t heap[100];
 
     struct list_head *next = head->next;
     for (int i = 0; i < heap_size; ++i) {
