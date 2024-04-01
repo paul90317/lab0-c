@@ -42,8 +42,9 @@
 
 #define ENOUGH_MEASURE 10000
 #define TEST_TRIES 10
+#define N_PERCENTILE 100
 
-static t_context_t *t;
+static t_context_t t[N_PERCENTILE + 1];
 
 /* threshold values for Welch's t-test */
 enum {
@@ -64,16 +65,20 @@ static void differentiate(int64_t *exec_times,
         exec_times[i] = after_ticks[i] - before_ticks[i];
 }
 
+static int64_t *percentiles = NULL;
+
 static void update_statistics(const int64_t *exec_times, uint8_t *classes)
 {
-    for (size_t i = 0; i < N_MEASURES; i++) {
+    for (size_t i = DROP_SIZE; i < N_MEASURES - DROP_SIZE; i++) {
         int64_t difference = exec_times[i];
         /* CPU cycle counter overflowed or dropped measurement */
         if (difference <= 0)
             continue;
 
         /* do a t-test on the execution time */
-        t_push(t, difference, classes[i]);
+        for (int i = 0; i < N_PERCENTILE && difference < percentiles[i]; ++i)
+            t_push(&t[i], difference, classes[i]);
+        t_push(&t[N_PERCENTILE], difference, classes[i]);
     }
 }
 
@@ -81,6 +86,13 @@ static bool report(void)
 {
     double max_t = fabs(t_compute(t));
     double number_traces_max_t = t->n[0] + t->n[1];
+    for (int i = 1; i <= N_PERCENTILE; ++i) {
+        double curr_t = fabs(t_compute(&t[i]));
+        if (curr_t > max_t) {
+            max_t = curr_t;
+            number_traces_max_t = t[i].n[0] + t[i].n[1];
+        }
+    }
     double max_tau = max_t / sqrt(number_traces_max_t);
 
     printf("\033[A\033[2K");
@@ -116,10 +128,35 @@ static bool report(void)
     return true;
 }
 
+static int cmp(const int64_t *a, const int64_t *b)
+{
+    if (*a == *b)
+        return 0;
+    return (*a > *b) ? 1 : -1;
+}
+
+static int64_t percentile(int64_t *a_sorted, double which, size_t size)
+{
+    size_t array_position = (size_t) ((double) size * (double) which);
+    assert(array_position < size);
+    return a_sorted[array_position];
+}
+
+static void prepare_percentiles(int64_t *exec_times)
+{
+    qsort(exec_times, N_MEASURES, sizeof(int64_t),
+          (int (*)(const void *, const void *)) cmp);
+    percentiles = malloc(sizeof(int64_t) * N_PERCENTILE);
+    for (size_t i = 0; i < N_PERCENTILE; i++) {
+        percentiles[i] = percentile(
+            exec_times, 1 - (pow(0.5, 10 * (double) (i + 1) / N_PERCENTILE)),
+            N_MEASURES);
+    }
+}
 static bool doit(int mode)
 {
-    int64_t *before_ticks = calloc(N_MEASURES + 1, sizeof(int64_t));
-    int64_t *after_ticks = calloc(N_MEASURES + 1, sizeof(int64_t));
+    int64_t *before_ticks = calloc(N_MEASURES, sizeof(int64_t));
+    int64_t *after_ticks = calloc(N_MEASURES, sizeof(int64_t));
     int64_t *exec_times = calloc(N_MEASURES, sizeof(int64_t));
     uint8_t *classes = calloc(N_MEASURES, sizeof(uint8_t));
     uint8_t *input_data = calloc(N_MEASURES * CHUNK_SIZE, sizeof(uint8_t));
@@ -133,7 +170,10 @@ static bool doit(int mode)
 
     bool ret = measure(before_ticks, after_ticks, input_data, mode);
     differentiate(exec_times, before_ticks, after_ticks);
-    update_statistics(exec_times, classes);
+    if (!percentiles)
+        prepare_percentiles(exec_times);
+    else
+        update_statistics(exec_times, classes);
     ret &= report();
 
     free(before_ticks);
@@ -154,7 +194,7 @@ static void init_once(void)
 static bool test_const(char *text, int mode)
 {
     bool result = false;
-    t = malloc(sizeof(t_context_t));
+    memset(t, 0, sizeof(t));
 
     for (int cnt = 0; cnt < TEST_TRIES; ++cnt) {
         printf("Testing %s...(%d/%d)\n\n", text, cnt, TEST_TRIES);
@@ -166,12 +206,19 @@ static bool test_const(char *text, int mode)
         if (result)
             break;
     }
-    free(t);
+    if (percentiles) {
+        free(percentiles);
+        percentiles = NULL;
+    }
+
     return result;
 }
 
-#define DUT_FUNC_IMPL(op) \
-    bool is_##op##_const(void) { return test_const(#op, DUT(op)); }
+#define DUT_FUNC_IMPL(op)                \
+    bool is_##op##_const(void)           \
+    {                                    \
+        return test_const(#op, DUT(op)); \
+    }
 
 #define _(x) DUT_FUNC_IMPL(x)
 DUT_FUNCS
